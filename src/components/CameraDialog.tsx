@@ -22,6 +22,20 @@ const CameraDialog: React.FC<CameraDialogProps> = ({ isOpen, onClose, onCapture 
     try {
       setIsStartingCamera(true);
       setError('');
+
+      // Check if mediaDevices is supported
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera not supported in this browser');
+      }
+
+      // Check camera permissions first
+      try {
+        const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
+        console.log('Camera permission status:', permissionStatus.state);
+      } catch (permErr) {
+        console.log('Permission query not supported, trying direct access');
+      }
+
       const constraints = {
         video: {
           facingMode: { ideal: 'environment' }, // Prefer rear camera
@@ -30,17 +44,73 @@ const CameraDialog: React.FC<CameraDialogProps> = ({ isOpen, onClose, onCapture 
         }
       };
 
+      console.log('Requesting camera access with constraints:', constraints);
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        
+        // Wait for video to be ready
+        await new Promise((resolve) => {
+          videoRef.current!.onloadedmetadata = () => {
+            resolve(true);
+          };
+        });
+        
+        await videoRef.current.play();
         setIsCamera(true);
+        console.log('Camera started successfully');
       }
-    } catch (err) {
-      console.error('Camera access error:', err);
-      setError('Unable to access camera. Please check permissions.');
+    } catch (err: any) {
+      console.error('Camera access error details:', {
+        name: err.name,
+        message: err.message,
+        constraint: err.constraint,
+        stack: err.stack
+      });
+      
+      let errorMessage = 'Unable to access camera. ';
+      
+      if (err.name === 'NotAllowedError') {
+        errorMessage += 'Please allow camera permissions and try again.';
+      } else if (err.name === 'NotFoundError') {
+        errorMessage += 'No camera found on this device.';
+      } else if (err.name === 'NotSupportedError') {
+        errorMessage += 'Camera not supported in this browser.';
+      } else if (err.name === 'NotReadableError') {
+        errorMessage += 'Camera is already in use by another application.';
+      } else if (err.name === 'OverconstrainedError') {
+        errorMessage += 'Camera constraints not supported. Trying with basic settings...';
+        
+        // Try with simpler constraints
+        try {
+          const simpleStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          streamRef.current = simpleStream;
+          
+          if (videoRef.current) {
+            videoRef.current.srcObject = simpleStream;
+            
+            // Wait for video to be ready (mirror metadata-await logic)
+            await new Promise((resolve) => {
+              videoRef.current!.onloadedmetadata = () => {
+                resolve(true);
+              };
+            });
+            
+            await videoRef.current.play();
+            setIsCamera(true);
+            console.log('Camera started with simple constraints');
+            return;
+          }
+        } catch (simpleErr) {
+          console.error('Simple camera access also failed:', simpleErr);
+        }
+      } else {
+        errorMessage += `Error: ${err.message || 'Unknown camera error'}`;
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsStartingCamera(false);
     }
@@ -127,7 +197,13 @@ const CameraDialog: React.FC<CameraDialogProps> = ({ isOpen, onClose, onCapture 
         <div className="p-6">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
-              {error}
+              <p className="mb-3">{error}</p>
+              <button
+                onClick={startCamera}
+                className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm"
+              >
+                Retry Camera
+              </button>
             </div>
           )}
 
