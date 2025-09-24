@@ -1,4 +1,13 @@
-modules = ["python-3.11"]
+modules = ["nodejs-20", "postgresql-16"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[[ports]]
+localPort = 43373
+externalPort = 3000
+
 [agent]
 expertMode = true
 
@@ -12,24 +21,19 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Web Server"
+args = "Document Scanner App"
 
 [[workflows.workflow]]
-name = "Web Server"
+name = "Document Scanner App"
 author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python -m http.server 5000"
+args = "npm run dev"
 waitForPort = 5000
 
 [workflows.workflow.metadata]
 outputType = "webview"
 
-[[ports]]
-localPort = 5000
-externalPort = 80
-
-[[ports]]
-localPort = 35505
-externalPort = 3000
+[nix]
+channel = "stable-25_05"
