@@ -79,7 +79,37 @@ const CameraDialog: React.FC<CameraDialogProps> = ({ isOpen, onClose, onCapture 
       } else if (err.name === 'NotSupportedError') {
         errorMessage += 'Camera not supported in this browser.';
       } else if (err.name === 'NotReadableError') {
-        errorMessage += 'Camera is already in use by another application.';
+        errorMessage += 'Camera is already in use or unavailable. Please close other apps using the camera and try again.';
+        
+        // For NotReadableError, also try with very basic constraints
+        try {
+          console.log('Attempting basic camera access for NotReadableError...');
+          const basicStream = await navigator.mediaDevices.getUserMedia({ 
+            video: { 
+              width: { ideal: 640 },
+              height: { ideal: 480 }
+            } 
+          });
+          streamRef.current = basicStream;
+          
+          if (videoRef.current) {
+            videoRef.current.srcObject = basicStream;
+            
+            // Wait for video to be ready 
+            await new Promise((resolve) => {
+              videoRef.current!.onloadedmetadata = () => {
+                resolve(true);
+              };
+            });
+            
+            await videoRef.current.play();
+            setIsCamera(true);
+            console.log('Camera started with basic constraints after NotReadableError');
+            return;
+          }
+        } catch (basicErr) {
+          console.error('Basic camera access also failed:', basicErr);
+        }
       } else if (err.name === 'OverconstrainedError') {
         errorMessage += 'Camera constraints not supported. Trying with basic settings...';
         
