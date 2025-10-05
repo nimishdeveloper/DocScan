@@ -43,14 +43,7 @@ const ScanPage = () => {
     try {
       const worker = await createTesseractWorker('eng');
       
-      // Set up progress tracking
-      const progressHandler = (m: any) => {
-        if (m.status === 'recognizing text') {
-          setProgress(Math.round(m.progress * 100));
-        }
-      };
-
-      // Override the logger temporarily
+      // Perform OCR recognition
       const { data: { text } } = await worker.recognize(capturedImage);
       
       if (!text.trim()) {

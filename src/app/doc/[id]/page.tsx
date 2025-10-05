@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { type Doc } from '../../../lib/database';
 
@@ -13,13 +13,7 @@ const DocumentDetailPage = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedText, setEditedText] = useState('');
 
-  useEffect(() => {
-    if (params.id) {
-      loadDocument(params.id as string);
-    }
-  }, [params.id]);
-
-  const loadDocument = async (id: string) => {
+  const loadDocument = useCallback(async (id: string) => {
     try {
       setLoading(true);
       const response = await fetch(`/api/document/${id}`);
@@ -38,7 +32,13 @@ const DocumentDetailPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (params.id) {
+      loadDocument(params.id as string);
+    }
+  }, [params.id, loadDocument]);
 
   const saveChanges = async () => {
     if (!document) return;
@@ -193,14 +193,14 @@ const DocumentDetailPage = () => {
       )}
 
       {/* Document Image */}
-      {document.fileUrl && (
+      {document.objectKey && (
         <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md">
           <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-white">
             Original Document
           </h2>
           <div className="flex justify-center">
             <img
-              src={document.fileUrl}
+              src={`/api/uploads/${document.objectKey}`}
               alt="Original document"
               className="max-w-full max-h-96 object-contain rounded-lg border shadow-sm"
             />

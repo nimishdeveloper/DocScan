@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 interface CameraDialogProps {
   isOpen: boolean;
@@ -18,7 +18,7 @@ const CameraDialog: React.FC<CameraDialogProps> = ({ isOpen, onClose, onCapture 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const startCamera = async () => {
+  const startCamera = useCallback(async () => {
     try {
       setIsStartingCamera(true);
       setError('');
@@ -32,7 +32,7 @@ const CameraDialog: React.FC<CameraDialogProps> = ({ isOpen, onClose, onCapture 
       try {
         const permissionStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
         console.log('Camera permission status:', permissionStatus.state);
-      } catch (permErr) {
+      } catch {
         console.log('Permission query not supported, trying direct access');
       }
 
@@ -62,23 +62,24 @@ const CameraDialog: React.FC<CameraDialogProps> = ({ isOpen, onClose, onCapture 
         setIsCamera(true);
         console.log('Camera started successfully');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const error = err as { name?: string; message?: string; constraint?: string; stack?: string };
       console.error('Camera access error details:', {
-        name: err.name,
-        message: err.message,
-        constraint: err.constraint,
-        stack: err.stack
+        name: error.name,
+        message: error.message,
+        constraint: error.constraint,
+        stack: error.stack
       });
       
       let errorMessage = 'Unable to access camera. ';
       
-      if (err.name === 'NotAllowedError') {
+      if (error.name === 'NotAllowedError') {
         errorMessage += 'Please allow camera permissions and try again.';
-      } else if (err.name === 'NotFoundError') {
+      } else if (error.name === 'NotFoundError') {
         errorMessage += 'No camera found on this device.';
-      } else if (err.name === 'NotSupportedError') {
+      } else if (error.name === 'NotSupportedError') {
         errorMessage += 'Camera not supported in this browser.';
-      } else if (err.name === 'NotReadableError') {
+      } else if (error.name === 'NotReadableError') {
         errorMessage += 'Camera is already in use or unavailable. Please close other apps using the camera and try again.';
         
         // For NotReadableError, also try with very basic constraints
@@ -110,7 +111,7 @@ const CameraDialog: React.FC<CameraDialogProps> = ({ isOpen, onClose, onCapture 
         } catch (basicErr) {
           console.error('Basic camera access also failed:', basicErr);
         }
-      } else if (err.name === 'OverconstrainedError') {
+      } else if (error.name === 'OverconstrainedError') {
         errorMessage += 'Camera constraints not supported. Trying with basic settings...';
         
         // Try with simpler constraints
@@ -137,22 +138,22 @@ const CameraDialog: React.FC<CameraDialogProps> = ({ isOpen, onClose, onCapture 
           console.error('Simple camera access also failed:', simpleErr);
         }
       } else {
-        errorMessage += `Error: ${err.message || 'Unknown camera error'}`;
+        errorMessage += `Error: ${error.message || 'Unknown camera error'}`;
       }
       
       setError(errorMessage);
     } finally {
       setIsStartingCamera(false);
     }
-  };
+  }, []);
 
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
     }
     setIsCamera(false);
-  };
+  }, []);
 
   const captureImage = () => {
     const video = videoRef.current;
@@ -196,14 +197,14 @@ const CameraDialog: React.FC<CameraDialogProps> = ({ isOpen, onClose, onCapture 
     if (isOpen && !isCamera && !capturedImage) {
       startCamera();
     }
-  }, [isOpen]);
+  }, [isOpen, isCamera, capturedImage, startCamera]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       stopCamera();
     };
-  }, []);
+  }, [stopCamera]);
 
   if (!isOpen) return null;
 
