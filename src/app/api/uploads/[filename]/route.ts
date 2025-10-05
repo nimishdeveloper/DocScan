@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
+import { supabaseAdmin } from '@/server/supabase';
 
 export async function GET(
   request: NextRequest,
@@ -13,14 +11,16 @@ export async function GET(
     // Sanitize filename to prevent directory traversal (preserve underscores for nanoid)
     const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '');
     
-    const filePath = join(process.cwd(), 'uploads', sanitizedFilename);
-    
-    if (!existsSync(filePath)) {
+    // Download file from Supabase Storage
+    const { data, error } = await supabaseAdmin.storage
+      .from('documents')
+      .download(sanitizedFilename);
+
+    if (error || !data) {
+      console.error('File download error:', error);
       return new NextResponse('File not found', { status: 404 });
     }
 
-    const fileBuffer = await readFile(filePath);
-    
     // Determine content type based on file extension
     const extension = sanitizedFilename.split('.').pop()?.toLowerCase();
     let contentType = 'application/octet-stream';
@@ -41,7 +41,10 @@ export async function GET(
         break;
     }
 
-    return new NextResponse(fileBuffer as unknown as BodyInit, {
+    // Convert blob to buffer
+    const arrayBuffer = await data.arrayBuffer();
+    
+    return new NextResponse(arrayBuffer, {
       headers: {
         'Content-Type': contentType,
         'Cache-Control': 'public, max-age=31536000'
