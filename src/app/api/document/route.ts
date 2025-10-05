@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, docs } from '@/lib/database';
+import { db, docs, type Doc } from '@/lib/database';
 import { eq } from 'drizzle-orm';
+import { getDocumentSignedUrl } from '@/server/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,17 +39,21 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user's documents
-    const userDocs = await db.select().from(docs)
+    const userDocs: Doc[] = await db.select().from(docs)
       .where(eq(docs.userId, userId))
       .orderBy(docs.createdAt);
 
-    // Generate file URLs for local storage
-    const docsWithUrls = userDocs.map((doc) => {
-      return {
-        ...doc,
-        fileUrl: `/api/uploads/${doc.objectKey}`
-      };
-    });
+    // Generate signed URLs from Supabase Storage
+    const docsWithUrls = await Promise.all(
+      userDocs.map(async (doc: Doc) => {
+        try {
+          const signedUrl = await getDocumentSignedUrl(doc.objectKey);
+          return { ...doc, fileUrl: signedUrl };
+        } catch {
+          return { ...doc, fileUrl: null };
+        }
+      })
+    );
 
     return NextResponse.json({ documents: docsWithUrls });
 

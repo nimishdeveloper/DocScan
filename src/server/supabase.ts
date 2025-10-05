@@ -42,3 +42,13 @@ export const uploadDocument = async (file: ArrayBuffer, fileName: string, conten
   if (error) throw error;
   return data;
 };
+
+// Delete file from storage
+export const deleteDocument = async (objectKey: string) => {
+  const { data, error } = await supabaseAdmin.storage
+    .from('documents')
+    .remove([objectKey]);
+
+  if (error) throw error;
+  return data;
+};

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { nanoid } from 'nanoid';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
+import { uploadDocument } from '@/server/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,24 +25,14 @@ export async function POST(request: NextRequest) {
     const fileExtension = file.name.split('.').pop();
     const fileName = `${nanoid()}.${fileExtension}`;
     
-    // Convert file to buffer
-    const buffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(buffer);
-    
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), 'uploads');
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-    }
-    
-    // Save file locally
-    const filePath = join(uploadsDir, fileName);
-    await writeFile(filePath, uint8Array);
+    // Upload to Supabase Storage (persistent and Vercel-compatible)
+    const arrayBuffer = await file.arrayBuffer();
+    const uploadRes = await uploadDocument(arrayBuffer, fileName, file.type);
 
     return NextResponse.json({
       fileName: fileName,
       objectKey: fileName,
-      filePath: `/uploads/${fileName}`,
+      storagePath: uploadRes.path,
       message: 'File uploaded successfully'
     });
 

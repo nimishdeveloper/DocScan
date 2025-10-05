@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, docs } from '@/lib/database';
-import { getDocumentSignedUrl } from '@/server/supabase';
+import { getDocumentSignedUrl, deleteDocument as deleteFromStorage } from '@/server/supabase';
 import { eq } from 'drizzle-orm';
 
 export async function GET(
@@ -77,16 +77,27 @@ export async function DELETE(
   try {
     const { id } = params;
     
-    // Delete document from database
-    const result = await db.delete(docs)
+    // Get document first to retrieve objectKey
+    const docResult = await db.select().from(docs)
       .where(eq(docs.id, id))
-      .returning();
+      .limit(1);
 
-    if (result.length === 0) {
+    if (docResult.length === 0) {
       return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
-    // TODO: Also delete the file from Supabase storage using the objectKey
+    const document = docResult[0];
+
+    // Delete file from Supabase storage
+    try {
+      await deleteFromStorage(document.objectKey);
+    } catch (storageError) {
+      console.error('Storage deletion error:', storageError);
+      // Continue with database deletion even if storage fails
+    }
+    
+    // Delete document from database
+    await db.delete(docs).where(eq(docs.id, id));
     
     return NextResponse.json({
       message: 'Document deleted successfully'
